@@ -1,0 +1,83 @@
+## Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+## Сборка
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa]rm/
+[Aa]rm64/
+[Ll]og/
+[Ll]ogs/
+publish/
+*.publish.xml
+PublishScripts/
+
+## NuGet
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+## Результаты тестов и покрытия
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+*.trx
+*.coverage
+*.coveragexml
+coverage*.json
+coverage*.xml
+TestResults/
+
+## ReSharper, Rider, VS Code
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+.idea/
+.vscode/
+
+## Временные и служебные файлы
+*.log
+*.tmp
+*.temp
+*.cache
+*.pdb
+*.ilk
+*.obj
+*.tlog
+*.vspscc
+*.vssscc
+*_i.c
+*_p.c
+*.pch
+*.ipch
+*.aps
+~$*
+*~
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+## Entity Framework
+*.edmx.diagram
+.mfractor/
+
+## Локальная база и медиа (раскомментируйте, если не хотите хранить в git)
+# *.db
+# *.db-shm
+# *.db-wal
+# *.sqlite
+# *.sqlite3
+# Media/
