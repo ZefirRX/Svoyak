@@ -1,4 +1,24 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup />
+  <ItemGroup>
+    <Compile Update="CreatorNewGamePage.xaml.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Update="MainGamePage.xaml.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Update="ModeChangePage.xaml.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Update="QuestionPage.xaml.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Update="SavedGamePage.xaml.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Update="SettingTeamPage.xaml.cs">
+      <SubType>Code</SubType>
+    </Compile>
+  </ItemGroup>
 </Project>
