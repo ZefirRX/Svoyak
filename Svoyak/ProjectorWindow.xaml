@@ -1,0 +1,31 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Background="{StaticResource BackgroundBrush}" Foreground="#0B1A3F" FontFamily="Segoe UI" FontSize="15" x:Class="Svoyak.ProjectorWindow" WindowStyle="None" ResizeMode="NoResize" ShowActivated="False" Title="Quiz Helper — проектор" Width="1280" Height="800" MinWidth="850" MinHeight="600" UseLayoutRounding="True" SnapsToDevicePixels="True">
+    <Grid Margin="32,24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <DockPanel>
+            <Button DockPanel.Dock="Right" Content="Закрыть" Click="CloseWindow" Margin="0" VerticalAlignment="Center"/>
+            <TextBlock x:Name="Countdown" DockPanel.Dock="Right" FontSize="48" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" Margin="20,0" VerticalAlignment="Center" MinWidth="140" TextAlignment="Center"/>
+            <Image Source="Assets/logo.png" Width="180" Margin="0,0,16,0"/>
+            <TextBlock x:Name="Caption" FontSize="24" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center"/>
+        </DockPanel>
+        <Grid Grid.Row="1" Margin="0,24">
+            <ScrollViewer x:Name="BoardView" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                <Grid x:Name="AudienceBoard" IsHitTestVisible="False" Focusable="False" VerticalAlignment="Top"/>
+            </ScrollViewer>
+            <Grid x:Name="QuestionView">
+                <Grid.RowDefinitions>
+                    <RowDefinition x:Name="PromptRow" Height="*"/>
+                    <RowDefinition x:Name="PictureRow" Height="0"/>
+                </Grid.RowDefinitions>
+                <TextBlock x:Name="Prompt" FontSize="56" FontWeight="SemiBold" TextAlignment="Center" VerticalAlignment="Center"/>
+                <Image x:Name="QuestionPicture" Grid.Row="1" Stretch="Uniform" Margin="0,16,0,0"/>
+            </Grid>
+        </Grid>
+        <Border Grid.Row="2" Style="{StaticResource Card}">
+            <UniformGrid x:Name="Scores" Rows="1"/>
+        </Border>
+    </Grid>
+</Window>

@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -9,6 +9,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Resource Include="Assets\logo.png" />
+    <None Include="..\SQLite_Svoyak.db" Link="SQLite_Svoyak.db" CopyToOutputDirectory="PreserveNewest" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.13">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -21,3 +23,6 @@
   </ItemGroup>
 
 </Project>
+
+
+
