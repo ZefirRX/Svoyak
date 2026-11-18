@@ -1,8 +1,6 @@
-using Microsoft.Win32;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
 
 namespace Svoyak;
 
@@ -35,24 +33,23 @@ public partial class MainWindow
         BoardCells.RowDefinitions.Clear();
         int rowCount = currentGame.Topics.Max(topic => topic.Questions.Count);
         for (int column = 0; column < currentGame.Topics.Count; column++) BoardCells.ColumnDefinitions.Add(new ColumnDefinition());
-        BoardCells.RowDefinitions.Add(new RowDefinition { Height = new GridLength(56) });
-        for (int row = 0; row < rowCount; row++) BoardCells.RowDefinitions.Add(new RowDefinition { Height = new GridLength(88) });
+        BoardCells.RowDefinitions.Add(new RowDefinition { Height = new GridLength(44) });
+        for (int row = 0; row < rowCount; row++) BoardCells.RowDefinitions.Add(new RowDefinition { Height = new GridLength(60) });
         for (int column = 0; column < currentGame.Topics.Count; column++)
         {
             var topic = currentGame.Topics[column];
-            var header = new Border { Background = (Brush)FindResource("AccentBrush"), CornerRadius = new CornerRadius(8), Margin = new Thickness(0, 0, 8, 8), Child = new TextBlock { Text = topic.Title, Foreground = Brushes.White, FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } };
+            var header = new Border { Background = (Brush)FindResource("AccentBrush"), CornerRadius = new CornerRadius(6), Padding = new Thickness(5, 2, 5, 2), Margin = new Thickness(0, 0, 5, 5), Child = new TextBlock { Text = topic.Title, Foreground = Brushes.White, FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } };
             PutCell(header, column, 0);
             for (int row = 0; row < topic.Questions.Count; row++)
             {
                 var question = topic.Questions[row];
                 var button = ActionButton(question.Points.ToString(), () => OpenQuestion(topic, question));
-                button.Margin = new Thickness(0, 0, 8, 8);
+                button.Margin = new Thickness(0, 0, 5, 5);
                 button.VerticalAlignment = VerticalAlignment.Stretch;
-                button.FontSize = 38;
+                button.FontSize = 26;
                 button.FontWeight = FontWeights.Bold;
                 button.Foreground = (Brush)FindResource("AccentBrush");
                 button.IsEnabled = !playedQuestions.Contains(question.Id);
-                if (!button.IsEnabled) button.Content = new TextBlock { Text = question.Points.ToString(), TextDecorations = TextDecorations.Strikethrough };
                 PutCell(button, column, row + 1);
             }
         }
@@ -74,7 +71,7 @@ public partial class MainWindow
         {
             var caption = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
             caption.Children.Add(Text(team.Name));
-            var score = Text(team.Score.ToString(), 28);
+            var score = Text(team.Score.ToString(), 20);
             score.Foreground = (Brush)FindResource("AccentBrush");
             score.FontWeight = FontWeights.Bold;
             caption.Children.Add(score);
@@ -126,6 +123,8 @@ public partial class MainWindow
             var wrong = new Button
             {
                 Content = alreadyWrong ? "Списано ✓" : $"Неверно −{question.Points}",
+                Background = new SolidColorBrush(Color.FromRgb(166, 37, 48)),
+                Foreground = Brushes.White,
                 IsEnabled = !alreadyWrong
             };
             wrong.Click += (_, _) =>
@@ -140,6 +139,7 @@ public partial class MainWindow
         RenderMedia(question);
         ShowView(QuestionView, "Режим: игра");
         UpdateTimer();
+        RefreshProjector();
     }
 
     private void RegisterWrongAnswer(Team team, Question question)
@@ -151,33 +151,6 @@ public partial class MainWindow
             $"{team.Name} −{question.Points} (неверный ответ)", question.Id));
         RenderScores();
         RefreshProjector();
-    }
-
-    private void RenderMedia(Question question)
-    {
-        MediaPanel.Children.Clear();
-        if (string.IsNullOrEmpty(question.MediaPath))
-        {
-            MediaPanel.Children.Add(Text("Медиафайл вопроса (картинка, аудио или видео)"));
-            return;
-        }
-        try
-        {
-            if (question.MediaType == 1)
-                MediaPanel.Children.Add(new Image { Source = QuestionImage.Load(question.MediaPath), Stretch = Stretch.Uniform });
-            else
-            {
-                var media = new MediaElement { Source = new Uri(question.MediaPath), LoadedBehavior = MediaState.Manual, UnloadedBehavior = MediaState.Stop, MaxHeight = 280 };
-
-                var controls = new StackPanel { Orientation = Orientation.Horizontal };
-                controls.Children.Add(ActionButton("▶ Воспроизвести", media.Play));
-                controls.Children.Add(ActionButton("Пауза", media.Pause));
-                DockPanel.SetDock(controls, Dock.Bottom);
-                MediaPanel.Children.Add(controls);
-                MediaPanel.Children.Add(media);
-            }
-        }
-        catch (Exception exception) { MediaPanel.Children.Add(Text("Не удалось открыть медиа: " + exception.Message)); }
     }
 
     private void CompleteQuestion(Team? team)
@@ -209,7 +182,7 @@ public partial class MainWindow
         TimerText.Text = TimeSpan.FromSeconds(secondsLeft).ToString(@"mm\:ss");
         TimerText.Foreground = secondsLeft == 0 ? Brushes.DarkRed : (Brush)FindResource("AccentBrush");
         TimerButton.Content = timer.IsEnabled ? "Пауза" : "Старт";
-        RefreshProjector();
+        projector?.UpdateCountdown(currentQuestion == null ? null : secondsLeft);
     }
 
     private void FinishGame(object sender, RoutedEventArgs e)
@@ -221,12 +194,12 @@ public partial class MainWindow
         foreach (var team in teams.OrderByDescending(team => team.Score))
         {
             var row = new Grid();
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });
             row.ColumnDefinitions.Add(new ColumnDefinition());
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            var rank = Text((place++).ToString(), 24);
-            var name = Text(team.Name, 24);
-            var score = Text(team.Score.ToString(), 28);
+            var rank = Text((place++).ToString(), 16);
+            var name = Text(team.Name, 17);
+            var score = Text(team.Score.ToString(), 20);
             score.FontWeight = FontWeights.Bold;
             score.Foreground = (Brush)FindResource("AccentBrush");
             Grid.SetColumn(name, 1);
@@ -237,7 +210,8 @@ public partial class MainWindow
             ResultRows.Children.Add(new Border
             {
                 Style = (Style)FindResource("Card"),
-                Margin = new Thickness(0, 0, 0, 8),
+                Padding = new Thickness(8, 6, 8, 6),
+                Margin = new Thickness(0, 0, 0, 5),
                 Child = row
             });
         }
@@ -270,6 +244,6 @@ public partial class MainWindow
         if (audienceScreen.HasValue) Activate();
     }
 
-    private void RefreshProjector() => projector?.Update(currentGame?.Title ?? "", currentTopic?.Title ?? "", currentQuestion, secondsLeft, teams, currentGame, playedQuestions);
+    private void RefreshProjector() => projector?.Update(currentGame?.Title ?? "", currentTopic?.Title ?? "", currentQuestion, secondsLeft, teams, currentGame, playedQuestions, questionVideo);
     private static void ShowError(Exception exception) => MessageBox.Show("Не удалось выполнить операцию: " + exception.Message, "Quiz Helper", MessageBoxButton.OK, MessageBoxImage.Error);
 }

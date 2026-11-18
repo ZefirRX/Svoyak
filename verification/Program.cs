@@ -10,14 +10,15 @@ class Program
 {
  [STAThread] static void Main()
  {
-  File.Copy(Path.GetFullPath("../SQLite_Svoyak.db"), Path.Combine(AppContext.BaseDirectory,"SQLite_Svoyak.db"),true);
-  var repository = new GameRepository();
+  var testDatabase = Path.Combine(AppContext.BaseDirectory, "verification.db");
+  File.Copy(Path.GetFullPath("../SQLite_Svoyak.db"), testDatabase, true);
+  var repository = new GameRepository(testDatabase);
   var game = new Game { Title="Общая эрудиция", Topics=[new Topic { Title="История", Questions=[new Question { Text="В каком году началась Первая мировая война?", Answer="1914", Points=100 }] }] };
   repository.Save(game); repository.Save(game);
   var stored=repository.LoadGames().Single(g=>g.Id==game.Id);
   if(stored.Topics.Count!=1 || stored.Topics[0].Questions.Count!=1) throw new Exception("Save failed");
   var app=new App(); app.InitializeComponent();
-  var window=new MainWindow(); window.Show(); Render(window,"menu");
+  var window=new MainWindow(repository); window.Show(); Render(window,"menu");
   Invoke(window,"EditGame",stored); Render(window,"editor");
   Invoke(window,"OpenSetup",window,new RoutedEventArgs()); Render(window,"setup");
   typeof(MainWindow).GetField("currentGame",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(window,stored);
@@ -48,13 +49,13 @@ class Program
   if(board.Children.Count != 2 || board.IsHitTestVisible) throw new Exception("Audience board must be visible and non-interactive");
   var cell = (System.Windows.Controls.Border)board.Children[1];
   var label = (System.Windows.Controls.TextBlock)cell.Child;
-  if(label.Text != "100" || label.TextDecorations != TextDecorations.Strikethrough) throw new Exception("Played cell missing");
+  if(label.Text != "100" || label.TextDecorations?.Count > 0 || cell.Opacity >= 1) throw new Exception("Played cell missing");
   if(((FrameworkElement)audience.FindName("QuestionView")).Visibility != Visibility.Collapsed) throw new Exception("Question must hide on board");
   if(image.Source != null) throw new Exception("Stale audience image");
   audience.Close();
   Invoke(window,"EditGame",stored);
-  Invoke(window,"DeleteTopic",window,new RoutedEventArgs());
   var draft = (Game)typeof(MainWindow).GetField("draft",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(window);
+  Invoke(window,"RemoveTopicFromDraft",draft.Topics[0]);
   if(draft.Topics.Count != 0) throw new Exception("Topic deletion failed");
   Invoke(window,"AddTopic",window,new RoutedEventArgs());
   if(draft.Topics.Count != 1) throw new Exception("Adding after deletion failed");

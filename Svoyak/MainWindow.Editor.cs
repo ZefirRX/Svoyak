@@ -1,8 +1,6 @@
 using Microsoft.Win32;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
 
 namespace Svoyak;
 
@@ -31,12 +29,17 @@ public partial class MainWindow
     private void SelectTopic(object sender, SelectionChangedEventArgs e)
     {
         var topic = TopicList.SelectedItem as Topic;
-        TopicTitle.DataContext = topic;
         QuestionList.ItemsSource = topic?.Questions;
         QuestionList.SelectedIndex = 0;
     }
 
-    private string TimerKey(int gameId, int topicIndex, int questionIndex) => $"{gameId}:{topicIndex}:{questionIndex}";
+    private void FocusTopicTitle(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e)
+    {
+        if (sender is TextBox { DataContext: Topic topic })
+            TopicList.SelectedItem = topic;
+    }
+
+    private static string TimerKey(int gameId, int topicIndex, int questionIndex) => $"{gameId}:{topicIndex}:{questionIndex}";
     private string DraftTimerKey() => TimerKey(draft?.Id ?? 0, TopicList.SelectedIndex, QuestionList.SelectedIndex);
 
     private void SelectQuestion(object sender, SelectionChangedEventArgs e)
@@ -55,30 +58,51 @@ public partial class MainWindow
 
     private void DeleteTopic(object sender, RoutedEventArgs e)
     {
-        if (draft == null || TopicList.SelectedItem is not Topic topic) return;
-        int removedIndex = TopicList.SelectedIndex;
+        if (sender is Button { DataContext: Topic topic } &&
+            ConfirmDeletion($"Удалить тему «{topic.Title}» со всеми вопросами?"))
+            RemoveTopicFromDraft(topic);
+    }
+
+    private void RemoveTopicFromDraft(Topic topic)
+    {
+        if (draft == null) return;
+        int removedIndex = draft.Topics.IndexOf(topic);
+        if (removedIndex < 0) return;
+        var selected = TopicList.SelectedItem as Topic;
         timerSettings.RemoveTopic(draft.Id, removedIndex);
         draft.Topics.Remove(topic);
         RefreshTopics();
-        TopicList.SelectedIndex = Math.Min(removedIndex, draft.Topics.Count - 1);
+        TopicList.SelectedIndex = selected == topic || selected == null
+            ? Math.Min(removedIndex, draft.Topics.Count - 1) : draft.Topics.IndexOf(selected);
     }
 
     private void AddQuestion(object sender, RoutedEventArgs e)
     {
         if (TopicList.SelectedItem is not Topic topic) return;
         topic.Questions.Add(new Question { Points = (topic.Questions.Count + 1) * 100 });
-        QuestionList.ItemsSource = null;
-        QuestionList.ItemsSource = topic.Questions;
-        QuestionList.SelectedIndex = topic.Questions.Count - 1;
+        RefreshQuestions(topic, topic.Questions.Count - 1);
     }
 
     private void DeleteQuestion(object sender, RoutedEventArgs e)
     {
-        if (TopicList.SelectedItem is not Topic topic || QuestionList.SelectedItem is not Question question) return;
-        topic.Questions.Remove(question);
+        if (TopicList.SelectedItem is not Topic topic || sender is not Button { DataContext: Question question }) return;
+        int removedIndex = topic.Questions.IndexOf(question);
+        if (removedIndex < 0) return;
+
+        string prompt = string.IsNullOrWhiteSpace(question.Text) ? "Удалить этот вопрос?" : $"Удалить вопрос?\n\n{question.Text}";
+        if (!ConfirmDeletion(prompt)) return;
+
+        var selected = QuestionList.SelectedItem as Question;
+        topic.Questions.RemoveAt(removedIndex);
+        RefreshQuestions(topic, selected == question || selected == null
+            ? Math.Min(removedIndex, topic.Questions.Count - 1) : topic.Questions.IndexOf(selected));
+    }
+
+    private void RefreshQuestions(Topic topic, int selection)
+    {
         QuestionList.ItemsSource = null;
         QuestionList.ItemsSource = topic.Questions;
-        QuestionList.SelectedIndex = 0;
+        QuestionList.SelectedIndex = selection;
     }
 
     private void SaveTimerSetting(object sender, RoutedEventArgs e)

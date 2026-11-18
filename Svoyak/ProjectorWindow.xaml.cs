@@ -11,12 +11,12 @@ public partial class ProjectorWindow : Window
 
     public ProjectorWindow() => InitializeComponent();
 
-    public void Update(string gameTitle, string topicTitle, Question? question, int seconds, IReadOnlyList<Team> teams, Game? game = null, IReadOnlySet<int>? playedQuestions = null)
+    public void Update(string gameTitle, string topicTitle, Question? question, int seconds, IReadOnlyList<Team> teams, Game? game = null, IReadOnlySet<int>? playedQuestions = null, ImageSource? video = null)
     {
         Caption.Text = question == null ? gameTitle : $"{topicTitle} · {question.Points} баллов";
         Prompt.Text = question?.Text ?? "Выберите вопрос на табло";
-        Countdown.Text = question == null ? "" : TimeSpan.FromSeconds(seconds).ToString(@"mm\:ss");
-        UpdateImage(question);
+        UpdateCountdown(question == null ? null : seconds);
+        UpdateMedia(question, video);
         bool showBoard = question == null && game != null;
         BoardView.Visibility = showBoard ? Visibility.Visible : Visibility.Collapsed;
         QuestionView.Visibility = showBoard ? Visibility.Collapsed : Visibility.Visible;
@@ -30,6 +30,9 @@ public partial class ProjectorWindow : Window
             Scores.Children.Add(panel);
         }
     }
+
+    internal void UpdateCountdown(int? seconds) =>
+        Countdown.Text = seconds is int remaining ? TimeSpan.FromSeconds(remaining).ToString(@"mm\:ss") : "";
 
     private void RenderBoard(Game game, IReadOnlySet<int>? playedQuestions)
     {
@@ -68,8 +71,7 @@ public partial class ProjectorWindow : Window
             Foreground = isHeader ? Brushes.White : (Brush)FindResource("AccentBrush"),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
-            TextAlignment = TextAlignment.Center,
-            TextDecorations = isPlayed ? TextDecorations.Strikethrough : null
+            TextAlignment = TextAlignment.Center
         };
         var cell = new Border
         {
@@ -88,16 +90,18 @@ public partial class ProjectorWindow : Window
         AudienceBoard.Children.Add(cell);
     }
 
-    private void UpdateImage(Question? question)
+    private void UpdateMedia(Question? question, ImageSource? video)
     {
         string? imagePath = question?.MediaType == 1 ? question.MediaPath : null;
-        if (imagePath == displayedImagePath) return;
-        displayedImagePath = imagePath;
-        QuestionPicture.Source = null;
-        if (!string.IsNullOrWhiteSpace(imagePath))
+        if (video != null || imagePath != displayedImagePath || QuestionPicture.Source is DrawingImage)
         {
-            try { QuestionPicture.Source = QuestionImage.Load(imagePath); }
-            catch (Exception) { /* Keep the question visible if the image is unavailable. */ }
+            displayedImagePath = imagePath;
+            QuestionPicture.Source = video;
+            if (video == null && !string.IsNullOrWhiteSpace(imagePath))
+            {
+                try { QuestionPicture.Source = QuestionImage.Load(imagePath); }
+                catch (Exception) { /* Keep the question visible if the image is unavailable. */ }
+            }
         }
         bool hasImage = QuestionPicture.Source != null;
         PromptRow.Height = hasImage ? GridLength.Auto : new GridLength(1, GridUnitType.Star);
