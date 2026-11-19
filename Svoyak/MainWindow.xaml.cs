@@ -33,7 +33,7 @@ public partial class MainWindow : Window
             if (secondsLeft == 0) timer.Stop();
             UpdateTimer();
         };
-        Closed += (_, _) => { timer.Stop(); CloseQuestionMedia(); projector?.Close(); };
+        Closed += (_, _) => { timer.Stop(); CloseQuestionMedia(); ClearEditorPreview(); projector?.Close(); };
         teams.Add(new Team { Name = "Эрудиты" });
         teams.Add(new Team { Name = "Знатоки" });
     }
@@ -44,6 +44,7 @@ public partial class MainWindow : Window
             screen.Visibility = screen == view ? Visibility.Visible : Visibility.Collapsed;
         MenuButton.Visibility = view == MenuView ? Visibility.Collapsed : Visibility.Visible;
         ModeLabel.Text = mode;
+        if (view != EditorView) ClearEditorPreview();
         if (view != QuestionView)
         {
             timer.Stop();
@@ -189,7 +190,7 @@ public partial class MainWindow : Window
 
     private void RemoveTeam(object sender, RoutedEventArgs e)
     {
-        if (teams.Count <= 2 || !ConfirmDeletion($"Удалить команду «{teams[^1].Name}»?")) return;
+        if (teams.Count <= 2) return;
         teams.RemoveAt(teams.Count - 1);
         RenderTeamInputs();
     }

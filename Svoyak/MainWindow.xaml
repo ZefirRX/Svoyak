@@ -165,7 +165,17 @@
                                     </StackPanel>
                                 </UniformGrid>
                                 <Button HorizontalAlignment="Left" Content="Выбрать медиафайл…" Click="ChooseMedia"/>
-                                <TextBlock Text="{Binding MediaPath}" FontSize="12"/>
+                                <TextBlock Text="{Binding MediaPath}" FontSize="12" TextWrapping="Wrap"/>
+                                <Image x:Name="EditorImagePreview" Visibility="Collapsed" MaxHeight="240"
+                                       Stretch="Uniform" HorizontalAlignment="Left" Margin="0,6,0,0"/>
+                                <StackPanel x:Name="EditorVideoPreview" Visibility="Collapsed" Margin="0,6,0,0">
+                                    <MediaElement x:Name="EditorVideo" Height="220" Stretch="Uniform"
+                                                  LoadedBehavior="Manual" UnloadedBehavior="Close" ScrubbingEnabled="True"
+                                                  MediaOpened="EditorVideoOpened" MediaEnded="EditorVideoEnded" MediaFailed="EditorVideoFailed"/>
+                                    <Button x:Name="EditorVideoToggle" HorizontalAlignment="Left" Margin="0,6,0,0"
+                                            Content="▶ Воспроизвести" Click="ToggleEditorVideo"/>
+                                </StackPanel>
+                                <TextBlock x:Name="EditorPreviewError" Visibility="Collapsed" TextWrapping="Wrap"/>
                             </StackPanel>
                         </Border>
                     </Grid>

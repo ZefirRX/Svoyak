@@ -44,7 +44,9 @@ public partial class MainWindow
 
     private void SelectQuestion(object sender, SelectionChangedEventArgs e)
     {
-        QuestionForm.DataContext = QuestionList.SelectedItem;
+        var question = QuestionList.SelectedItem as Question;
+        QuestionForm.DataContext = question;
+        ShowEditorPreview(question);
         SecondsInput.Text = timerSettings.Get(DraftTimerKey()).ToString();
     }
 
@@ -122,6 +124,96 @@ public partial class MainWindow
         question.MediaType = extension is ".mp3" or ".wav" ? 2 : extension is ".mp4" or ".wmv" ? 3 : 1;
         QuestionForm.DataContext = null;
         QuestionForm.DataContext = question;
+        ShowEditorPreview(question);
+    }
+
+    private bool editorVideoPlaying;
+
+    private void ClearEditorPreview()
+    {
+        if (EditorVideo.Source != null)
+        {
+            EditorVideo.Close();
+            EditorVideo.Source = null;
+        }
+        EditorImagePreview.Source = null;
+        EditorImagePreview.Visibility = Visibility.Collapsed;
+        EditorVideoPreview.Visibility = Visibility.Collapsed;
+        EditorPreviewError.Visibility = Visibility.Collapsed;
+        EditorVideoToggle.IsEnabled = false;
+        SetEditorVideoPlaying(false);
+    }
+
+    private void ShowEditorPreview(Question? question)
+    {
+        ClearEditorPreview();
+        if (question?.MediaPath is not { Length: > 0 } path || question.MediaType is not (1 or 3)) return;
+
+        try
+        {
+            if (!System.IO.File.Exists(path))
+            {
+                ShowEditorPreviewError("Медиафайл не найден. Выберите его заново.");
+                return;
+            }
+
+            if (question.MediaType == 1)
+            {
+                EditorImagePreview.Source = QuestionImage.Load(path);
+                EditorImagePreview.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                EditorVideo.Source = new Uri(System.IO.Path.GetFullPath(path));
+                EditorVideoPreview.Visibility = Visibility.Visible;
+                EditorVideo.Pause();
+            }
+        }
+        catch (Exception exception)
+        {
+            ShowEditorPreviewError("Не удалось открыть медиа: " + exception.Message);
+        }
+    }
+
+    private void EditorVideoOpened(object sender, RoutedEventArgs e)
+    {
+        if (EditorVideo.Source == null) return;
+        EditorVideo.Position = TimeSpan.Zero;
+        EditorVideoToggle.IsEnabled = true;
+    }
+
+    private void ToggleEditorVideo(object sender, RoutedEventArgs e)
+    {
+        if (editorVideoPlaying) EditorVideo.Pause();
+        else EditorVideo.Play();
+        SetEditorVideoPlaying(!editorVideoPlaying);
+    }
+
+    private void EditorVideoEnded(object sender, RoutedEventArgs e)
+    {
+        if (EditorVideo.Source == null) return;
+        EditorVideo.Pause();
+        EditorVideo.Position = TimeSpan.Zero;
+        SetEditorVideoPlaying(false);
+    }
+
+    private void SetEditorVideoPlaying(bool playing)
+    {
+        editorVideoPlaying = playing;
+        EditorVideoToggle.Content = playing ? "Ⅱ Пауза" : "▶ Воспроизвести";
+    }
+
+    private void EditorVideoFailed(object sender, ExceptionRoutedEventArgs e)
+    {
+        if (EditorVideo.Source != null)
+            ShowEditorPreviewError("Не удалось открыть видео: " + e.ErrorException.Message);
+    }
+
+    private void ShowEditorPreviewError(string message)
+    {
+        ClearEditorPreview();
+        EditorPreviewError.Text = message;
+        EditorPreviewError.Visibility = Visibility.Visible;
     }
 
     private bool SaveDraft()
