@@ -1,5 +1,7 @@
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 
 namespace Svoyak;
@@ -69,32 +71,69 @@ public partial class MainWindow
         ScoreRows.Children.Clear();
         foreach (var team in teams)
         {
-            var caption = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-            caption.Children.Add(Text(team.Name));
-            var score = Text(team.Score.ToString(), 20);
-            score.Foreground = (Brush)FindResource("AccentBrush");
-            score.FontWeight = FontWeights.Bold;
-            caption.Children.Add(score);
-            ScoreRows.Children.Add(ActionRow(caption,
-                ActionButton("−100", () => AdjustScore(team, -100)),
-                ActionButton("+100", () => AdjustScore(team, 100))));
+            var score = new TextBox
+            {
+                Text = team.Score.ToString(),
+                MinWidth = 116,
+                FontSize = 20,
+                FontWeight = FontWeights.Bold,
+                Foreground = (Brush)FindResource("AccentBrush"),
+                TextAlignment = TextAlignment.Right,
+                VerticalContentAlignment = VerticalAlignment.Center
+            };
+            AutomationProperties.SetName(score, $"Счёт команды «{team.Name}»");
+            score.LostKeyboardFocus += (_, _) => CommitScore(team, score);
+            score.PreviewKeyDown += (_, e) =>
+            {
+                if (e.Key == Key.Enter)
+                {
+                    CommitScore(team, score);
+                    score.SelectAll();
+                    e.Handled = true;
+                }
+                else if (e.Key == Key.Escape)
+                {
+                    score.Text = team.Score.ToString();
+                    score.SelectAll();
+                    e.Handled = true;
+                }
+            };
+
+            var row = new DockPanel { Margin = new Thickness(0, 0, 0, 5) };
+            DockPanel.SetDock(score, Dock.Right);
+            score.Margin = new Thickness(8, 0, 0, 0);
+            row.Children.Add(score);
+            var name = Text(team.Name);
+            name.VerticalAlignment = VerticalAlignment.Center;
+            row.Children.Add(name);
+            ScoreRows.Children.Add(row);
         }
+        UpdateScoreHistory();
+    }
+
+    private void UpdateScoreHistory()
+    {
         LastAction.Text = history.TryPeek(out var action) ? "Последнее: " + action.Description : "Действий пока нет";
         UndoButton.IsEnabled = history.Count > 0;
     }
 
-    private void AdjustScore(Team team, int delta)
+    private void CommitScore(Team team, TextBox input)
     {
-        team.Score += delta;
-        history.Push(new ScoreAction(team, delta, null, $"{team.Name} {delta:+0;-0} (вручную)"));
-        RenderScores();
-        RefreshProjector();
+        int previousScore = team.Score;
+        if (int.TryParse(input.Text, out int score) && score != previousScore)
+        {
+            team.Score = score;
+            long delta = (long)score - previousScore;
+            history.Push(new ScoreAction(team, delta, null, $"{team.Name} {delta:+0;-0} (вручную)"));
+            UpdateScoreHistory();
+            RefreshProjector();
+        }
+        input.Text = team.Score.ToString();
     }
-
     private void UndoScore(object sender, RoutedEventArgs e)
     {
         if (!history.TryPop(out var action)) return;
-        if (action.Team != null) action.Team.Score -= action.Delta;
+        if (action.Team != null) action.Team.Score = (int)(action.Team.Score - action.Delta);
         if (action.QuestionId.HasValue) playedQuestions.Remove(action.QuestionId.Value);
         if (action.WrongQuestionId.HasValue && action.Team != null)
             wrongAnswers.Remove((action.WrongQuestionId.Value, action.Team));

@@ -19,7 +19,7 @@ public partial class MainWindow : Window
     private Topic? currentTopic;
     private int secondsLeft;
     private ProjectorWindow? projector;
-    private record ScoreAction(Team? Team, int Delta, int? QuestionId, string Description, int? WrongQuestionId = null);
+    private record ScoreAction(Team? Team, long Delta, int? QuestionId, string Description, int? WrongQuestionId = null);
 
     public MainWindow() : this(new GameRepository()) { }
 
