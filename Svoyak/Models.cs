@@ -37,3 +37,10 @@ public class Team
     public string Name { get; set; } = "";
     public int Score { get; set; }
 }
+
+internal static class QuestionMediaType
+{
+    public const int Image = 1;
+    public const int Audio = 2;
+    public const int Video = 3;
+}

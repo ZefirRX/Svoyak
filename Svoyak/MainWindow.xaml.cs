@@ -8,18 +8,12 @@ public partial class MainWindow : Window
 {
     private readonly GameRepository repository;
     private readonly TimerSettings timerSettings = new();
-    private readonly List<Team> teams = [];
-    private readonly HashSet<int> playedQuestions = [];
-    private readonly Stack<ScoreAction> history = new();
-    private readonly HashSet<(int QuestionId, Team Team)> wrongAnswers = [];
+    private readonly List<Team> teams = [new() { Name = "Эрудиты" }, new() { Name = "Знатоки" }];
+    private readonly GameSession session = new();
     private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromSeconds(1) };
     private Game? draft;
-    private Game? currentGame;
-    private Question? currentQuestion;
-    private Topic? currentTopic;
     private int secondsLeft;
     private ProjectorWindow? projector;
-    private record ScoreAction(Team? Team, long Delta, int? QuestionId, string Description, int? WrongQuestionId = null);
 
     public MainWindow() : this(new GameRepository()) { }
 
@@ -27,6 +21,7 @@ public partial class MainWindow : Window
     {
         this.repository = repository;
         InitializeComponent();
+        Loaded += (_, _) => Motion.Enter(MenuView);
         timer.Tick += (_, _) =>
         {
             secondsLeft = Math.Max(0, secondsLeft - 1);
@@ -34,14 +29,13 @@ public partial class MainWindow : Window
             UpdateTimer();
         };
         Closed += (_, _) => { timer.Stop(); CloseQuestionMedia(); ClearEditorPreview(); projector?.Close(); };
-        teams.Add(new Team { Name = "Эрудиты" });
-        teams.Add(new Team { Name = "Знатоки" });
     }
 
     private void ShowView(FrameworkElement view, string mode = "")
     {
         foreach (var screen in new FrameworkElement[] { MenuView, LibraryView, EditorView, SetupView, BoardView, QuestionView, ResultsView })
             screen.Visibility = screen == view ? Visibility.Visible : Visibility.Collapsed;
+        Motion.Enter(view);
         MenuButton.Visibility = view == MenuView ? Visibility.Collapsed : Visibility.Visible;
         ModeLabel.Text = mode;
         if (view != EditorView) ClearEditorPreview();
@@ -164,12 +158,15 @@ public partial class MainWindow : Window
 
     private void RenderTeamInputs()
     {
-        TeamCount.Text = teams.Count.ToString();
+        string count = teams.Count.ToString();
+        if (TeamCount.Text != count) Motion.Pulse(TeamCount);
+        TeamCount.Text = count;
         TeamInputs.Children.Clear();
-        foreach (var team in teams)
+        for (int index = 0; index < teams.Count; index++)
         {
-            var panel = new StackPanel { Margin = teams.IndexOf(team) % 2 == 0 ? new Thickness(0, 0, 6, 0) : new Thickness(6, 0, 0, 0) };
-            panel.Children.Add(Text($"Команда {teams.IndexOf(team) + 1}", 13));
+            var team = teams[index];
+            var panel = new StackPanel { Margin = index % 2 == 0 ? new Thickness(0, 0, 6, 0) : new Thickness(6, 0, 0, 0) };
+            panel.Children.Add(Text($"Команда {index + 1}", 13));
             var input = new TextBox { Text = team.Name };
             input.TextChanged += (_, _) => team.Name = input.Text;
             panel.Children.Add(input);
@@ -182,6 +179,7 @@ public partial class MainWindow : Window
         if (teams.Count == 8) return;
         teams.Add(new Team { Name = $"Команда {teams.Count + 1}" });
         RenderTeamInputs();
+        Motion.Enter((FrameworkElement)TeamInputs.Children[^1]);
     }
 
     private bool ConfirmDeletion(string message) =>

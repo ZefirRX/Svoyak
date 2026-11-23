@@ -47,6 +47,7 @@ public partial class MainWindow
         var question = QuestionList.SelectedItem as Question;
         QuestionForm.DataContext = question;
         ShowEditorPreview(question);
+        if (question != null && EditorView.IsVisible) Motion.Enter(QuestionForm, 5, 180);
         SecondsInput.Text = timerSettings.Get(DraftTimerKey()).ToString();
     }
 
@@ -117,14 +118,21 @@ public partial class MainWindow
     private void ChooseMedia(object sender, RoutedEventArgs e)
     {
         if (QuestionList.SelectedItem is not Question question) return;
-        var dialog = new OpenFileDialog { Filter = "Медиа|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.mp3;*.wav;*.mp4;*.wmv" };
+        var dialog = new OpenFileDialog { Filter = "Медиа|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.mp3;*.wav;*.m4a;*.mp4;*.wmv" };
         if (dialog.ShowDialog() != true) return;
         question.MediaPath = dialog.FileName;
         var extension = System.IO.Path.GetExtension(dialog.FileName).ToLowerInvariant();
-        question.MediaType = extension is ".mp3" or ".wav" ? 2 : extension is ".mp4" or ".wmv" ? 3 : 1;
+        question.MediaType = extension switch
+        {
+            ".mp3" or ".wav" or ".m4a" => QuestionMediaType.Audio,
+            ".mp4" or ".wmv" => QuestionMediaType.Video,
+            _ => QuestionMediaType.Image
+        };
         QuestionForm.DataContext = null;
         QuestionForm.DataContext = question;
         ShowEditorPreview(question);
+        if (EditorImagePreview.IsVisible) Motion.Enter(EditorImagePreview);
+        if (EditorVideoPreview.IsVisible) Motion.Enter(EditorVideoPreview);
     }
 
     private bool editorVideoPlaying;
@@ -147,7 +155,9 @@ public partial class MainWindow
     private void ShowEditorPreview(Question? question)
     {
         ClearEditorPreview();
-        if (question?.MediaPath is not { Length: > 0 } path || question.MediaType is not (1 or 3)) return;
+        if (question?.MediaPath is not { Length: > 0 } path ||
+            question.MediaType is not (QuestionMediaType.Image or QuestionMediaType.Video))
+            return;
 
         try
         {
@@ -157,7 +167,7 @@ public partial class MainWindow
                 return;
             }
 
-            if (question.MediaType == 1)
+            if (question.MediaType == QuestionMediaType.Image)
             {
                 EditorImagePreview.Source = QuestionImage.Load(path);
                 EditorImagePreview.Visibility = Visibility.Visible;

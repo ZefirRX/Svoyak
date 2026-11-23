@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -6,138 +7,45 @@ namespace Svoyak;
 
 public partial class MainWindow
 {
-    private QuestionAudioPlayer? audioPlayer;
-    private MediaPlayer? videoPlayer;
+    private MediaPlayer? questionPlayer;
     private DrawingImage? questionVideo;
+    private AudioPlaybackSource? audioSource;
 
     private void CloseQuestionMedia()
     {
-        audioPlayer?.Dispose();
-        audioPlayer = null;
-        videoPlayer?.Close();
-        videoPlayer = null;
+        var player = questionPlayer;
+        questionPlayer = null;
+        player?.Close();
         questionVideo = null;
         MediaPanel.Children.Clear();
+        audioSource?.Dispose();
+        audioSource = null;
     }
 
     private void RenderMedia(Question question)
     {
         CloseQuestionMedia();
         var mediaPath = question.MediaPath;
-        bool isImage = question.MediaType == 1;
+        bool isImage = question.MediaType == QuestionMediaType.Image;
+        bool isAudio = question.MediaType == QuestionMediaType.Audio;
         MediaFrame.BorderThickness = new Thickness(isImage ? 0 : 1);
         MediaFrame.Padding = new Thickness(isImage ? 0 : 8);
         MediaFrame.Visibility = !string.IsNullOrEmpty(mediaPath) ? Visibility.Visible : Visibility.Collapsed;
-        MediaFrame.VerticalAlignment = question.MediaType == 3 || question.MediaType == 1
+        MediaFrame.VerticalAlignment = question.MediaType == QuestionMediaType.Video || isImage
             ? VerticalAlignment.Stretch : VerticalAlignment.Top;
         if (string.IsNullOrEmpty(mediaPath)) return;
 
         try
         {
-            if (!System.IO.File.Exists(mediaPath))
-                throw new System.IO.FileNotFoundException("Файл не найден. Выберите его заново в редакторе.");
-            if (question.MediaType == 1)
+            if (!File.Exists(mediaPath))
+                throw new FileNotFoundException("Файл не найден. Выберите его заново в редакторе.");
+            if (isImage)
             {
                 MediaPanel.Children.Add(new Image { Source = QuestionImage.Load(mediaPath), Stretch = Stretch.Uniform });
                 return;
             }
 
-            var panel = new StackPanel();
-            var controls = new StackPanel { Orientation = Orientation.Horizontal };
-            var status = Text(System.IO.Path.GetFileName(mediaPath));
-            status.Margin = new Thickness(0, 0, 0, 5);
-            panel.Children.Add(status);
-            panel.Children.Add(controls);
-            DockPanel.SetDock(panel, Dock.Top);
-
-            void ShowPlaybackError(string error)
-            {
-                status.Text = "Не удалось воспроизвести файл: " + error;
-                controls.IsEnabled = false;
-            }
-
-            async void RunAudioCommand(Func<Task> command)
-            {
-                try { await command(); }
-                catch (Exception error)
-                {
-                    if (panel.IsLoaded) ShowPlaybackError(error.Message);
-                }
-            }
-
-            Button AddPlaybackControls(Action toggle, Action restart)
-            {
-                var toggleButton = ActionButton("▶ Воспроизвести", toggle);
-                toggleButton.Margin = new Thickness(0, 0, 6, 5);
-                controls.Children.Add(toggleButton);
-                controls.Children.Add(ActionButton("↻ С начала", restart));
-                return toggleButton;
-            }
-
-            static void UpdatePlaybackButton(Button button, bool playing) =>
-                button.Content = playing ? "Ⅱ Пауза" : "▶ Воспроизвести";
-
-            MediaPanel.Children.Add(panel);
-            if (question.MediaType == 2)
-            {
-                var player = new QuestionAudioPlayer();
-                audioPlayer = player;
-                controls.IsEnabled = false;
-                var toggleButton = AddPlaybackControls(
-                    () => RunAudioCommand(player.ToggleAsync),
-                    () => RunAudioCommand(player.RestartAsync));
-                status.Text += " · Загрузка…";
-                panel.Children.Add(player.View);
-                player.View.Loaded += OpenAudio;
-
-                async void OpenAudio(object sender, RoutedEventArgs e)
-                {
-                    player.View.Loaded -= OpenAudio;
-                    await player.OpenAsync(mediaPath, () =>
-                    {
-                        status.Text = System.IO.Path.GetFileName(mediaPath);
-                        controls.IsEnabled = true;
-                    }, playing => UpdatePlaybackButton(toggleButton, playing), ShowPlaybackError);
-                }
-            }
-            else
-            {
-                var media = new MediaPlayer { ScrubbingEnabled = true };
-                var drawing = new VideoDrawing { Player = media, Rect = new Rect(0, 0, 16, 9) };
-                videoPlayer = media;
-                questionVideo = new DrawingImage(drawing);
-                media.MediaOpened += (_, _) =>
-                {
-                    if (media.NaturalVideoWidth > 0 && media.NaturalVideoHeight > 0)
-                        drawing.Rect = new Rect(0, 0, media.NaturalVideoWidth, media.NaturalVideoHeight);
-                };
-                media.MediaFailed += (_, e) => ShowPlaybackError(e.ErrorException.Message);
-                bool playing = false;
-                var toggleButton = ActionButton("▶ Воспроизвести", () =>
-                {
-                    if (playing) media.Pause();
-                    else media.Play();
-                    playing = !playing;
-                });
-                toggleButton.Click += (_, _) => UpdatePlaybackButton(toggleButton, playing);
-                toggleButton.Margin = new Thickness(0, 0, 6, 5);
-                controls.Children.Add(toggleButton);
-                controls.Children.Add(ActionButton("↻ С начала", () =>
-                {
-                    media.Position = TimeSpan.Zero;
-                    media.Play();
-                    playing = true;
-                    UpdatePlaybackButton(toggleButton, playing);
-                }));
-                media.MediaEnded += (_, _) =>
-                {
-                    media.Stop();
-                    playing = false;
-                    UpdatePlaybackButton(toggleButton, playing);
-                };
-                MediaPanel.Children.Add(new Image { Source = questionVideo, Stretch = Stretch.Uniform });
-                media.Open(new Uri(System.IO.Path.GetFullPath(mediaPath)));
-            }
+            RenderPlayback(mediaPath, isAudio);
         }
         catch (Exception exception)
         {
@@ -145,5 +53,81 @@ public partial class MainWindow
             MediaFrame.VerticalAlignment = VerticalAlignment.Top;
             MediaPanel.Children.Add(Text("Не удалось открыть медиа: " + exception.Message));
         }
+    }
+
+    private void RenderPlayback(string mediaPath, bool isAudio)
+    {
+        var panel = new StackPanel();
+        var controls = new StackPanel { Orientation = Orientation.Horizontal, IsEnabled = false };
+        var fileName = Path.GetFileName(mediaPath);
+        var status = Text(fileName + " · Загрузка…");
+        status.Margin = new Thickness(0, 0, 0, 5);
+        panel.Children.Add(status);
+        panel.Children.Add(controls);
+        DockPanel.SetDock(panel, Dock.Top);
+
+        MediaPanel.Children.Add(panel);
+        var player = new MediaPlayer { ScrubbingEnabled = !isAudio };
+        questionPlayer = player;
+        VideoDrawing? drawing = null;
+        if (!isAudio)
+        {
+            drawing = new VideoDrawing { Player = player, Rect = new Rect(0, 0, 16, 9) };
+            questionVideo = new DrawingImage(drawing);
+            MediaPanel.Children.Add(new Image { Source = questionVideo, Stretch = Stretch.Uniform });
+        }
+
+        bool playing = false;
+        var toggleButton = new Button
+        {
+            Content = "▶ Воспроизвести",
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 6, 5)
+        };
+        toggleButton.Click += (_, _) =>
+        {
+            if (playing) player.Pause();
+            else player.Play();
+            SetPlaying(!playing);
+        };
+        controls.Children.Add(toggleButton);
+        controls.Children.Add(ActionButton("↻ С начала", () =>
+        {
+            player.Position = TimeSpan.Zero;
+            player.Play();
+            SetPlaying(true);
+        }));
+
+        void SetPlaying(bool value)
+        {
+            playing = value;
+            toggleButton.Content = value ? "Ⅱ Пауза" : "▶ Воспроизвести";
+        }
+
+        player.MediaOpened += (_, _) =>
+        {
+            if (questionPlayer != player) return;
+            if (drawing is not null && player.NaturalVideoWidth > 0 && player.NaturalVideoHeight > 0)
+                drawing.Rect = new Rect(0, 0, player.NaturalVideoWidth, player.NaturalVideoHeight);
+            status.Text = fileName;
+            controls.IsEnabled = true;
+        };
+        player.MediaFailed += (_, e) =>
+        {
+            if (questionPlayer != player) return;
+            status.Text = "Не удалось воспроизвести файл: " + e.ErrorException.Message;
+            controls.IsEnabled = false;
+            SetPlaying(false);
+        };
+        player.MediaEnded += (_, _) =>
+        {
+            if (questionPlayer != player) return;
+            player.Stop();
+            SetPlaying(false);
+        };
+
+        audioSource = isAudio ? AudioPlaybackSource.Open(mediaPath) : null;
+        string playbackPath = audioSource?.FilePath ?? mediaPath;
+        player.Open(new Uri(Path.GetFullPath(playbackPath)));
     }
 }

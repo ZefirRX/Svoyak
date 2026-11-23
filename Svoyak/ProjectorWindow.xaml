@@ -23,6 +23,14 @@
                 <TextBlock x:Name="Prompt" FontSize="56" FontWeight="SemiBold" TextAlignment="Center" VerticalAlignment="Center"/>
                 <Image x:Name="QuestionPicture" Grid.Row="1" Stretch="Uniform" Margin="0,10,0,0"/>
             </Grid>
+            <Border x:Name="AnswerView" Background="{StaticResource BackgroundBrush}" Visibility="Collapsed">
+                <ScrollViewer x:Name="AnswerContent" VerticalAlignment="Center" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="24,12">
+                    <StackPanel>
+                        <TextBlock Text="Правильный ответ" FontSize="24" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" TextAlignment="Center" Margin="0,0,0,12"/>
+                        <TextBlock x:Name="AnswerText" FontSize="56" FontWeight="SemiBold" TextAlignment="Center" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
         </Grid>
         <Border Grid.Row="2" Style="{StaticResource Card}">
             <UniformGrid x:Name="Scores" Rows="1"/>

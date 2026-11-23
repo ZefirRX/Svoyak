@@ -1,15 +1,42 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace Svoyak;
 
-/// <summary>Displays the board or current question without revealing the answer.</summary>
+/// <summary>Displays the board, the current question, and the answer to a completed question.</summary>
 public partial class ProjectorWindow : Window
 {
     private string? displayedImagePath;
+    private Question? displayedQuestion;
+    private Game? displayedGame;
+    private Dictionary<Team, int> displayedScores = [];
+    private readonly DispatcherTimer answerTimer = new() { Interval = TimeSpan.FromSeconds(4) };
 
-    public ProjectorWindow() => InitializeComponent();
+    public ProjectorWindow()
+    {
+        InitializeComponent();
+        answerTimer.Tick += (_, _) =>
+        {
+            answerTimer.Stop();
+            AnswerView.Visibility = Visibility.Collapsed;
+            Countdown.Visibility = Visibility.Visible;
+            AnimateCurrentView();
+        };
+        Closed += (_, _) => answerTimer.Stop();
+    }
+
+    internal void ShowAnswer(string? answer)
+    {
+        if (string.IsNullOrWhiteSpace(answer)) return;
+        AnswerText.Text = answer;
+        AnswerView.Visibility = Visibility.Visible;
+        Countdown.Visibility = Visibility.Hidden;
+        Motion.Enter(AnswerContent, 16, 320);
+        answerTimer.Stop();
+        answerTimer.Start();
+    }
 
     public void Update(string gameTitle, string topicTitle, Question? question, int seconds, IReadOnlyList<Team> teams, Game? game = null, IReadOnlySet<int>? playedQuestions = null, ImageSource? video = null)
     {
@@ -21,32 +48,41 @@ public partial class ProjectorWindow : Window
         BoardView.Visibility = showBoard ? Visibility.Visible : Visibility.Collapsed;
         QuestionView.Visibility = showBoard ? Visibility.Collapsed : Visibility.Visible;
         if (showBoard) RenderBoard(game!, playedQuestions);
+        if ((question != displayedQuestion || game != displayedGame) && AnswerView.Visibility != Visibility.Visible)
+            AnimateCurrentView();
+        displayedQuestion = question;
+        displayedGame = game;
+
         Scores.Children.Clear();
+        var currentScores = new Dictionary<Team, int>();
         foreach (var team in teams)
         {
             var panel = new StackPanel();
             panel.Children.Add(new TextBlock { Text = team.Name, HorizontalAlignment = HorizontalAlignment.Center });
-            panel.Children.Add(new TextBlock { Text = team.Score.ToString(), FontSize = 28, FontWeight = FontWeights.Bold, Foreground = (Brush)FindResource("AccentBrush"), HorizontalAlignment = HorizontalAlignment.Center });
+            var score = new TextBlock { Text = team.Score.ToString(), FontSize = 28, FontWeight = FontWeights.Bold, Foreground = (Brush)FindResource("AccentBrush"), HorizontalAlignment = HorizontalAlignment.Center };
+            panel.Children.Add(score);
+            if (displayedScores.TryGetValue(team, out int previous) && previous != team.Score)
+                Motion.Pulse(score);
+            currentScores[team] = team.Score;
             Scores.Children.Add(panel);
         }
+        displayedScores = currentScores;
     }
 
-    internal void UpdateCountdown(int? seconds) =>
-        Countdown.Text = seconds is int remaining ? TimeSpan.FromSeconds(remaining).ToString(@"mm\:ss") : "";
+    private void AnimateCurrentView() =>
+        Motion.Enter(BoardView.Visibility == Visibility.Visible ? BoardView : QuestionView, 10, 260);
+
+    internal void UpdateCountdown(int? seconds)
+    {
+        string time = seconds is int remaining ? TimeSpan.FromSeconds(remaining).ToString(@"mm\:ss") : "";
+        if (seconds is >= 0 and <= 5 && Countdown.Text != time && Countdown.Visibility == Visibility.Visible)
+            Motion.Pulse(Countdown);
+        Countdown.Text = time;
+    }
 
     private void RenderBoard(Game game, IReadOnlySet<int>? playedQuestions)
     {
-        AudienceBoard.Children.Clear();
-        AudienceBoard.ColumnDefinitions.Clear();
-        AudienceBoard.RowDefinitions.Clear();
-        if (game.Topics.Count == 0) return;
-
-        int questionRows = game.Topics.Max(topic => topic.Questions.Count);
-        foreach (var topic in game.Topics)
-            AudienceBoard.ColumnDefinitions.Add(new ColumnDefinition());
-        AudienceBoard.RowDefinitions.Add(new RowDefinition { Height = new GridLength(56) });
-        for (int row = 0; row < questionRows; row++)
-            AudienceBoard.RowDefinitions.Add(new RowDefinition { Height = new GridLength(88) });
+        QuestionBoard.Reset(AudienceBoard, game.Topics, headerHeight: 56, questionHeight: 88);
 
         for (int column = 0; column < game.Topics.Count; column++)
         {
@@ -85,14 +121,12 @@ public partial class ProjectorWindow : Window
                 : new SolidColorBrush(isPlayed ? Color.FromRgb(157, 179, 221) : Color.FromRgb(207, 219, 241)),
             Opacity = isPlayed ? 0.7 : 1
         };
-        Grid.SetColumn(cell, column);
-        Grid.SetRow(cell, row);
-        AudienceBoard.Children.Add(cell);
+        QuestionBoard.AddCell(AudienceBoard, cell, column, row);
     }
 
     private void UpdateMedia(Question? question, ImageSource? video)
     {
-        string? imagePath = question?.MediaType == 1 ? question.MediaPath : null;
+        string? imagePath = question?.MediaType == QuestionMediaType.Image ? question.MediaPath : null;
         if (video != null || imagePath != displayedImagePath || QuestionPicture.Source is DrawingImage)
         {
             displayedImagePath = imagePath;

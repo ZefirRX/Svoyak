@@ -1,7 +1,5 @@
 using System.Windows;
-using System.Windows.Automation;
 using System.Windows.Controls;
-using System.Windows.Input;
 using System.Windows.Media;
 
 namespace Svoyak;
@@ -15,149 +13,37 @@ public partial class MainWindow
             MessageBox.Show("Выберите игру с вопросами.");
             return;
         }
-        currentGame = game;
-        playedQuestions.Clear();
-        history.Clear();
-        wrongAnswers.Clear();
-        foreach (var team in teams) { team.Score = 0; if (string.IsNullOrWhiteSpace(team.Name)) team.Name = "Команда"; }
+        session.Start(game, teams);
         ReturnToBoard(sender, e);
         OpenProjector(sender, e);
     }
 
-    private void ReturnToBoard(object sender, RoutedEventArgs e)
-    {
-        if (currentGame == null) return;
-        currentQuestion = null;
-        ShowView(BoardView, "Режим: игра");
-        BoardTitle.Text = $"{currentGame.Title}   Сыграно {playedQuestions.Count} из {currentGame.Topics.Sum(topic => topic.Questions.Count)}";
-        BoardCells.Children.Clear();
-        BoardCells.ColumnDefinitions.Clear();
-        BoardCells.RowDefinitions.Clear();
-        int rowCount = currentGame.Topics.Max(topic => topic.Questions.Count);
-        for (int column = 0; column < currentGame.Topics.Count; column++) BoardCells.ColumnDefinitions.Add(new ColumnDefinition());
-        BoardCells.RowDefinitions.Add(new RowDefinition { Height = new GridLength(44) });
-        for (int row = 0; row < rowCount; row++) BoardCells.RowDefinitions.Add(new RowDefinition { Height = new GridLength(60) });
-        for (int column = 0; column < currentGame.Topics.Count; column++)
-        {
-            var topic = currentGame.Topics[column];
-            var header = new Border { Background = (Brush)FindResource("AccentBrush"), CornerRadius = new CornerRadius(6), Padding = new Thickness(5, 2, 5, 2), Margin = new Thickness(0, 0, 5, 5), Child = new TextBlock { Text = topic.Title, Foreground = Brushes.White, FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } };
-            PutCell(header, column, 0);
-            for (int row = 0; row < topic.Questions.Count; row++)
-            {
-                var question = topic.Questions[row];
-                var button = ActionButton(question.Points.ToString(), () => OpenQuestion(topic, question));
-                button.Margin = new Thickness(0, 0, 5, 5);
-                button.VerticalAlignment = VerticalAlignment.Stretch;
-                button.FontSize = 26;
-                button.FontWeight = FontWeights.Bold;
-                button.Foreground = (Brush)FindResource("AccentBrush");
-                button.IsEnabled = !playedQuestions.Contains(question.Id);
-                PutCell(button, column, row + 1);
-            }
-        }
-        RenderScores();
-        RefreshProjector();
-    }
-
-    private void PutCell(UIElement element, int column, int row)
-    {
-        Grid.SetColumn(element, column);
-        Grid.SetRow(element, row);
-        BoardCells.Children.Add(element);
-    }
-
-    private void RenderScores()
-    {
-        ScoreRows.Children.Clear();
-        foreach (var team in teams)
-        {
-            var score = new TextBox
-            {
-                Text = team.Score.ToString(),
-                MinWidth = 116,
-                FontSize = 20,
-                FontWeight = FontWeights.Bold,
-                Foreground = (Brush)FindResource("AccentBrush"),
-                TextAlignment = TextAlignment.Right,
-                VerticalContentAlignment = VerticalAlignment.Center
-            };
-            AutomationProperties.SetName(score, $"Счёт команды «{team.Name}»");
-            score.LostKeyboardFocus += (_, _) => CommitScore(team, score);
-            score.PreviewKeyDown += (_, e) =>
-            {
-                if (e.Key == Key.Enter)
-                {
-                    CommitScore(team, score);
-                    score.SelectAll();
-                    e.Handled = true;
-                }
-                else if (e.Key == Key.Escape)
-                {
-                    score.Text = team.Score.ToString();
-                    score.SelectAll();
-                    e.Handled = true;
-                }
-            };
-
-            var row = new DockPanel { Margin = new Thickness(0, 0, 0, 5) };
-            DockPanel.SetDock(score, Dock.Right);
-            score.Margin = new Thickness(8, 0, 0, 0);
-            row.Children.Add(score);
-            var name = Text(team.Name);
-            name.VerticalAlignment = VerticalAlignment.Center;
-            row.Children.Add(name);
-            ScoreRows.Children.Add(row);
-        }
-        UpdateScoreHistory();
-    }
-
-    private void UpdateScoreHistory()
-    {
-        LastAction.Text = history.TryPeek(out var action) ? "Последнее: " + action.Description : "Действий пока нет";
-        UndoButton.IsEnabled = history.Count > 0;
-    }
-
-    private void CommitScore(Team team, TextBox input)
-    {
-        int previousScore = team.Score;
-        if (int.TryParse(input.Text, out int score) && score != previousScore)
-        {
-            team.Score = score;
-            long delta = (long)score - previousScore;
-            history.Push(new ScoreAction(team, delta, null, $"{team.Name} {delta:+0;-0} (вручную)"));
-            UpdateScoreHistory();
-            RefreshProjector();
-        }
-        input.Text = team.Score.ToString();
-    }
-    private void UndoScore(object sender, RoutedEventArgs e)
-    {
-        if (!history.TryPop(out var action)) return;
-        if (action.Team != null) action.Team.Score = (int)(action.Team.Score - action.Delta);
-        if (action.QuestionId.HasValue) playedQuestions.Remove(action.QuestionId.Value);
-        if (action.WrongQuestionId.HasValue && action.Team != null)
-            wrongAnswers.Remove((action.WrongQuestionId.Value, action.Team));
-        ReturnToBoard(sender, e);
-    }
-
     private void OpenQuestion(Topic topic, Question question)
     {
-        currentTopic = topic;
-        currentQuestion = question;
-        secondsLeft = timerSettings.Get(TimerKey(currentGame!.Id, currentGame.Topics.IndexOf(topic), topic.Questions.IndexOf(question)));
+        if (session.Game is not { } game) return;
+        session.OpenQuestion(topic, question);
+        secondsLeft = timerSettings.Get(TimerKey(game.Id, game.Topics.IndexOf(topic), topic.Questions.IndexOf(question)));
         QuestionTitle.Text = $"{topic.Title} · {question.Points}";
         QuestionText.Text = question.Text;
         AnswerText.Text = question.Answer;
         AnswerText.Visibility = Visibility.Collapsed;
         AnswerButton.Visibility = Visibility.Visible;
+        RenderAnswerButtons(question);
+        RenderMedia(question);
+        ShowView(QuestionView, "Режим: игра");
+        UpdateTimer();
+        RefreshProjector();
+    }
+
+    private void RenderAnswerButtons(Question question)
+    {
         AnswerTeams.Children.Clear();
         foreach (var team in teams)
         {
-
             var correct = ActionButton($"Верно +{question.Points}", () => CompleteQuestion(team));
             correct.Background = new SolidColorBrush(Color.FromRgb(30, 127, 85));
             correct.Foreground = Brushes.White;
-            bool alreadyWrong = wrongAnswers.Contains((question.Id, team));
+            bool alreadyWrong = session.HasPenalty(team, question);
             correct.IsEnabled = !alreadyWrong;
             var wrong = new Button
             {
@@ -175,30 +61,19 @@ public partial class MainWindow
             };
             AnswerTeams.Children.Add(ActionRow(Text(team.Name), correct, wrong));
         }
-        RenderMedia(question);
-        ShowView(QuestionView, "Режим: игра");
-        UpdateTimer();
-        RefreshProjector();
     }
 
     private void RegisterWrongAnswer(Team team, Question question)
     {
-        // A team is penalized once per question, including when the question is reopened.
-        if (!wrongAnswers.Add((question.Id, team))) return;
-        team.Score -= question.Points;
-        history.Push(new ScoreAction(team, -question.Points, null,
-            $"{team.Name} −{question.Points} (неверный ответ)", question.Id));
+        if (!session.Penalize(team, question)) return;
         RenderScores();
         RefreshProjector();
     }
 
     private void CompleteQuestion(Team? team)
     {
-        if (currentQuestion == null) return;
-        int delta = team == null ? 0 : currentQuestion.Points;
-        if (team != null) team.Score += delta;
-        playedQuestions.Add(currentQuestion.Id);
-        history.Push(new ScoreAction(team, delta, currentQuestion.Id, team == null ? "Вопрос без ответа" : $"{team.Name} +{delta} ({currentTopic?.Title})"));
+        if (session.CompleteQuestion(team) is not { } question) return;
+        projector?.ShowAnswer(question.Answer);
         ReturnToBoard(this, new RoutedEventArgs());
     }
 
@@ -207,6 +82,7 @@ public partial class MainWindow
     {
         AnswerButton.Visibility = Visibility.Collapsed;
         AnswerText.Visibility = Visibility.Visible;
+        Motion.Enter(AnswerText);
     }
 
     private void ToggleTimer(object sender, RoutedEventArgs e)
@@ -218,42 +94,12 @@ public partial class MainWindow
 
     private void UpdateTimer()
     {
-        TimerText.Text = TimeSpan.FromSeconds(secondsLeft).ToString(@"mm\:ss");
+        string time = TimeSpan.FromSeconds(secondsLeft).ToString(@"mm\:ss");
+        if (secondsLeft <= 5 && TimerText.Text != time) Motion.Pulse(TimerText);
+        TimerText.Text = time;
         TimerText.Foreground = secondsLeft == 0 ? Brushes.DarkRed : (Brush)FindResource("AccentBrush");
         TimerButton.Content = timer.IsEnabled ? "Пауза" : "Старт";
-        projector?.UpdateCountdown(currentQuestion == null ? null : secondsLeft);
-    }
-
-    private void FinishGame(object sender, RoutedEventArgs e)
-    {
-        ShowView(ResultsView, "Режим: игра");
-        ResultsTitle.Text = $"ИТОГИ ИГРЫ «{currentGame?.Title.ToUpperInvariant()}»";
-        ResultRows.Children.Clear();
-        int place = 1;
-        foreach (var team in teams.OrderByDescending(team => team.Score))
-        {
-            var row = new Grid();
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });
-            row.ColumnDefinitions.Add(new ColumnDefinition());
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            var rank = Text((place++).ToString(), 16);
-            var name = Text(team.Name, 17);
-            var score = Text(team.Score.ToString(), 20);
-            score.FontWeight = FontWeights.Bold;
-            score.Foreground = (Brush)FindResource("AccentBrush");
-            Grid.SetColumn(name, 1);
-            Grid.SetColumn(score, 2);
-            row.Children.Add(rank);
-            row.Children.Add(name);
-            row.Children.Add(score);
-            ResultRows.Children.Add(new Border
-            {
-                Style = (Style)FindResource("Card"),
-                Padding = new Thickness(8, 6, 8, 6),
-                Margin = new Thickness(0, 0, 0, 5),
-                Child = row
-            });
-        }
+        projector?.UpdateCountdown(session.Question is null ? null : secondsLeft);
     }
 
     private void OpenProjector(object sender, RoutedEventArgs e)
@@ -283,6 +129,8 @@ public partial class MainWindow
         if (audienceScreen.HasValue) Activate();
     }
 
-    private void RefreshProjector() => projector?.Update(currentGame?.Title ?? "", currentTopic?.Title ?? "", currentQuestion, secondsLeft, teams, currentGame, playedQuestions, questionVideo);
+    private void RefreshProjector() =>
+        projector?.Update(session.Game?.Title ?? "", session.Topic?.Title ?? "", session.Question,
+            secondsLeft, teams, session.Game, session.PlayedQuestions, questionVideo);
     private static void ShowError(Exception exception) => MessageBox.Show("Не удалось выполнить операцию: " + exception.Message, "Quiz Helper", MessageBoxButton.OK, MessageBoxImage.Error);
 }
