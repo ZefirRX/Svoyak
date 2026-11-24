@@ -57,6 +57,33 @@ public sealed class GameRepository(string? databasePath = null)
         database.SaveChanges();
     }
 
+    internal void Import(IReadOnlyList<Game> games, IReadOnlyDictionary<Question, int> durations, TimerSettings timers)
+    {
+        if (games.Count == 0)
+            return;
+
+        using var database = new QuizDb(databasePath);
+        using var transaction = database.Database.BeginTransaction();
+        database.Games.AddRange(games);
+        database.SaveChanges();
+
+        var importedTimers = new Dictionary<string, int>();
+        foreach (var game in games)
+        {
+            for (int topicIndex = 0; topicIndex < game.Topics.Count; topicIndex++)
+            {
+                var questions = game.Topics[topicIndex].Questions;
+                for (int questionIndex = 0; questionIndex < questions.Count; questionIndex++)
+                {
+                    if (durations.TryGetValue(questions[questionIndex], out int seconds))
+                        importedTimers[TimerSettings.Key(game.Id, topicIndex, questionIndex)] = seconds;
+                }
+            }
+        }
+
+        timers.Import(importedTimers, transaction.Commit);
+    }
+
     public static Game Copy(Game source, bool keepId = true) => new()
     {
         Id = keepId ? source.Id : 0,

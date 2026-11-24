@@ -6,7 +6,7 @@ namespace Svoyak;
 /// <summary>The source schema has no timer column. Store durations by game/topic/question position.</summary>
 public sealed class TimerSettings
 {
-    private readonly string filePath = Path.Combine(AppContext.BaseDirectory, "timers.json");
+    private readonly string filePath = AppData.TimersPath;
     private Dictionary<string, int> durations = [];
 
     public TimerSettings()
@@ -37,5 +37,62 @@ public sealed class TimerSettings
         durations = updated;
     }
 
-    public void Save() => File.WriteAllText(filePath, JsonSerializer.Serialize(durations));
+    public void Save()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
+        File.WriteAllText(filePath, JsonSerializer.Serialize(durations));
+    }
+
+    internal static string Key(int gameId, int topicIndex, int questionIndex) =>
+        $"{gameId}:{topicIndex}:{questionIndex}";
+
+    internal void Import(Dictionary<string, int> imported, Action commit)
+    {
+        if (imported.Count == 0)
+        {
+            commit();
+            return;
+        }
+
+        var combined = new Dictionary<string, int>(durations);
+        foreach (var entry in imported)
+            combined[entry.Key] = entry.Value;
+
+        var directory = Path.GetDirectoryName(filePath)!;
+        Directory.CreateDirectory(directory);
+        var pendingPath = Path.Combine(directory, $"{Guid.NewGuid():N}.tmp");
+        var rollbackPath = pendingPath + ".bak";
+        try
+        {
+            File.WriteAllText(pendingPath, JsonSerializer.Serialize(combined));
+            bool hadTimers = File.Exists(filePath);
+            if (hadTimers)
+                File.Replace(pendingPath, filePath, rollbackPath);
+            else
+                File.Move(pendingPath, filePath);
+
+            try { commit(); }
+            catch
+            {
+                if (hadTimers)
+                    File.Move(rollbackPath, filePath, overwrite: true);
+                else
+                    File.Delete(filePath);
+                throw;
+            }
+            durations = combined;
+            DeleteTemporaryFile(rollbackPath);
+        }
+        finally
+        {
+            DeleteTemporaryFile(pendingPath);
+        }
+    }
+
+    private static void DeleteTemporaryFile(string path)
+    {
+        try { File.Delete(path); }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+    }
 }

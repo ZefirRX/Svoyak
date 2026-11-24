@@ -9,18 +9,20 @@
     <ApplicationIcon>Assets\Svoyak.ico</ApplicationIcon>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(PublishSingleFile)' == 'true'">
+    <DefineConstants>$(DefineConstants);SINGLE_FILE</DefineConstants>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <SatelliteResourceLanguages>ru;en</SatelliteResourceLanguages>
+    <SeedDatabasePath Condition="'$(SeedDatabasePath)' == ''">..\SQLite_Svoyak.db</SeedDatabasePath>
+  </PropertyGroup>
+
   <ItemGroup>
+    <EmbeddedResource Include="$(SeedDatabasePath)"
+                      LogicalName="Svoyak.SQLite_Svoyak.db"
+                      Condition="'$(PublishSingleFile)' == 'true'" />
     <Resource Include="Assets\logo.png" />
     <Resource Include="Assets\Svoyak.ico" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.13">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.13" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.13">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
   </ItemGroup>
 
 </Project>

@@ -22,7 +22,7 @@ public partial class MainWindow
     {
         if (session.Game is not { } game) return;
         session.OpenQuestion(topic, question);
-        secondsLeft = timerSettings.Get(TimerKey(game.Id, game.Topics.IndexOf(topic), topic.Questions.IndexOf(question)));
+        secondsLeft = timerSettings.Get(TimerSettings.Key(game.Id, game.Topics.IndexOf(topic), topic.Questions.IndexOf(question)));
         QuestionTitle.Text = $"{topic.Title} · {question.Points}";
         QuestionText.Text = question.Text;
         AnswerText.Text = question.Answer;

@@ -39,8 +39,7 @@ public partial class MainWindow
             TopicList.SelectedItem = topic;
     }
 
-    private static string TimerKey(int gameId, int topicIndex, int questionIndex) => $"{gameId}:{topicIndex}:{questionIndex}";
-    private string DraftTimerKey() => TimerKey(draft?.Id ?? 0, TopicList.SelectedIndex, QuestionList.SelectedIndex);
+    private string DraftTimerKey() => TimerSettings.Key(draft?.Id ?? 0, TopicList.SelectedIndex, QuestionList.SelectedIndex);
 
     private void SelectQuestion(object sender, SelectionChangedEventArgs e)
     {
@@ -245,8 +244,8 @@ public partial class MainWindow
             {
                 for (int topicIndex = 0; topicIndex < draft.Topics.Count; topicIndex++)
                 for (int questionIndex = 0; questionIndex < draft.Topics[topicIndex].Questions.Count; questionIndex++)
-                    timerSettings.Set(TimerKey(draft.Id, topicIndex, questionIndex),
-                        timerSettings.Get(TimerKey(previousId, topicIndex, questionIndex)));
+                    timerSettings.Set(TimerSettings.Key(draft.Id, topicIndex, questionIndex),
+                        timerSettings.Get(TimerSettings.Key(previousId, topicIndex, questionIndex)));
             }
             timerSettings.Save();
             return true;

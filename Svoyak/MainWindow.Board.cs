@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
@@ -63,7 +64,8 @@ public partial class MainWindow
         {
             var score = new TextBox
             {
-                Text = team.Score.ToString(),
+                Text = team.Score.ToString(CultureInfo.InvariantCulture),
+                AllowDrop = false,
                 MinWidth = 116,
                 FontSize = 20,
                 FontWeight = FontWeights.Bold,
@@ -72,6 +74,13 @@ public partial class MainWindow
                 VerticalContentAlignment = VerticalAlignment.Center
             };
             AutomationProperties.SetName(score, $"Счёт команды «{team.Name}»");
+            InputMethod.SetIsInputMethodEnabled(score, false);
+            score.PreviewTextInput += (_, e) => e.Handled = !CanInsertScoreText(score, e.Text);
+            DataObject.AddPastingHandler(score, (_, e) =>
+            {
+                if (e.DataObject.GetData(e.FormatToApply) is not string text || !CanInsertScoreText(score, text))
+                    e.CancelCommand();
+            });
             score.LostKeyboardFocus += (_, _) => CommitScore(team, score);
             score.PreviewKeyDown += (_, e) =>
             {
@@ -83,7 +92,7 @@ public partial class MainWindow
                 }
                 else if (e.Key == Key.Escape)
                 {
-                    score.Text = team.Score.ToString();
+                    score.Text = team.Score.ToString(CultureInfo.InvariantCulture);
                     score.SelectAll();
                     e.Handled = true;
                 }
@@ -101,6 +110,14 @@ public partial class MainWindow
         UpdateScoreHistory();
     }
 
+    private static bool CanInsertScoreText(TextBox input, string text)
+    {
+        string candidate = input.Text.Remove(input.SelectionStart, input.SelectionLength)
+            .Insert(input.SelectionStart, text);
+        int digitStart = candidate.StartsWith('-') ? 1 : 0;
+        return candidate.AsSpan(digitStart).IndexOfAnyExceptInRange('0', '9') < 0;
+    }
+
     private void UpdateScoreHistory()
     {
         var action = session.LastAction;
@@ -112,8 +129,9 @@ public partial class MainWindow
 
     private void CommitScore(Team team, TextBox input)
     {
-        bool changed = int.TryParse(input.Text, out int score) && session.SetScore(team, score);
-        input.Text = team.Score.ToString();
+        bool changed = int.TryParse(input.Text, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out int score)
+            && session.SetScore(team, score);
+        input.Text = team.Score.ToString(CultureInfo.InvariantCulture);
         if (changed)
         {
             UpdateScoreHistory();
